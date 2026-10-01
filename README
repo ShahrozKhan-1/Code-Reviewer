@@ -1,0 +1,83 @@
+# repo-agent
+
+A LangGraph pipeline that answers natural-language questions about a code repo. Point it at a checkout, ask a question, get an answer with `path:line` citations. Read-only.
+
+```
+PLANNER ──▶ EXPLORER ──▶ RESPONDER
+(plans)     (reads code)   (writes answer)
+```
+
+The planner picks files and search terms, the explorer investigates with tools and writes a findings report, the responder turns that into the final answer.
+
+---
+
+## Install
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install langchain langchain-google-genai langgraph python-dotenv pydantic
+```
+
+## Configure
+
+`.env` in the project root:
+
+```dotenv
+GEMINI_API_KEY=your-key
+GEMINI_MODEL=gemini-2.0-flash
+```
+
+## Use
+
+```python
+from chat.llm import chat_llm
+
+result = chat_llm(query="How does auth work?", repo_path="/abs/path/to/repo")
+print(result["answer"])        # markdown, cited
+print(result["files_read"])    # paths the explorer opened
+print(result["plan"])          # planner's RepoPlan
+```
+
+Or drive the graph directly for streaming / intermediate state:
+
+```python
+from agent.graph import graph
+state = graph.invoke({"user_query": "...", "repo_path": "..."})
+```
+
+---
+
+## Layout
+
+```
+agent/
+  config.py        # .env → API keys, model names
+  schema.py        # RepoPlan (pydantic), RepoState (TypedDict)
+  system_msg.py    # the three system prompts
+  tools.py         # read_file, read_lines, list_dir, grep, find_symbol
+  planner.py       # structured-output planner
+  explorer.py      # tool-using agent
+  graph.py         # StateGraph wiring
+chat/
+  utils.py         # directory tree + file list
+  llm.py           # chat_llm() entry point
+```
+
+## Stages
+
+**Planner** — reads the tree + file list only, never code. Emits a `RepoPlan`: `question_type` (overview / targeted / deep), `tool_budget` (5 / 8 / 15), `success_criteria`, `files_to_inspect`, `search_terms`.
+
+**Explorer** — a LangChain agent with five read-only tools. Investigates within its budget and writes a findings report with `VERIFIED` / `INFERRED` / `UNKNOWN` tags on every claim. Never answers the user.
+
+**Responder** — one LLM call. Turns the report into the answer, matching length to question type. Only cites paths the explorer actually saw.
+
+All file paths are sandboxed to the repo root (`_safe_path` rejects escapes).
+
+---
+
+## Notes
+
+- **Extending:** add a `@lc_tool` in `tools.py` and append it to `explorer_toolkit`. Add keys to `RepoState` freely — it's `total=False`.
+- **Prompts:** the invariants that keep this working are in `system_msg.py` — planner doesn't read code, explorer doesn't answer, responder doesn't invent citations, budgets are hard limits, `success_criteria` flows through all three stages.
+- **Not included:** multi-turn memory, caching, `.gitignore`-aware grep, AST-precise `find_symbol`. Add a LangGraph checkpointer for sessions.
+- **Troubleshooting:** missing key → `.env` not in CWD. Empty plan → question looks non-repo. "Not visible" answers → widen `files_to_inspect` or `search_terms`.

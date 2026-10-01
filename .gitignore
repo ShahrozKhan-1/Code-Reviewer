@@ -1,0 +1,55 @@
+# ---- secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- python ----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# ---- virtualenvs ----
+.venv/
+venv/
+env/
+ENV/
+
+# ---- testing / tooling caches ----
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# ---- jupyter ----
+.ipynb_checkpoints/
+
+# ---- langgraph / langchain local state ----
+.langgraph/
+*.sqlite
+*.sqlite3
+*.db
+
+# ---- logs ----
+*.log
+logs/
+
+# ---- editors / OS ----
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+tmp/
